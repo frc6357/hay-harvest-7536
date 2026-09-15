@@ -1,0 +1,840 @@
+package frc.lib.vision;
+
+// A Limelight class provided by FRC 3847 Spectrum that aids with
+// several Limelight configurations, measurements, and get/set methods
+
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Rotation3d;
+import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.lib.vision.LimelightHelpers.LimelightResults;
+import frc.lib.vision.LimelightHelpers.RawFiducial;
+
+import java.text.DecimalFormat;
+import lombok.Getter;
+import lombok.Setter;
+
+public class Limelight {
+
+    /* Limelight Configuration */
+
+    //@Getter and @Setter annotations create and call both get and set methods on the object annotated.
+    //These annotations are rpovided by project lombok, documentation can be found on theri site.
+
+    public static class LimelightConfig {
+        /** The name of the limelight, must match to the name given in LL dashboard */
+        @Getter @Setter private String name;
+        /** If the limelight is attached to the robot or not*/
+        @Getter @Setter private boolean attached = true;
+        /** isIntegrating */
+        @Getter @Setter private boolean isIntegrating;
+        /** Physical Config : The distances of the limelight from the center of the robot.
+         * Uses foward, right, up in meters where the specified directions are positive */
+        @Getter private double forward, right, up; // meters
+        /** The angle of the limelight in terms of roll, pitch, and yaw respectively in degrees*/
+        @Getter private double roll, pitch, yaw; // degrees
+        /** The default pose of the limelight in 3D space relative to the robot */
+        @Getter private Pose3d cameraPose3d = new Pose3d();
+
+        /** Creates a new limelight config (configurable limelight)
+         * @param name The name of the limelight
+         */
+        public LimelightConfig(String name) {
+            this.name = name;
+        }
+
+        /**
+         * Applies the translation of the limelight from the center of the robot.
+         * The raw fields (forward, right, up) use Limelight convention (right-positive).
+         * The cameraPose3d stores the equivalent in WPILib convention (Y = left-positive).
+         * @param forward (meters) forward from center of robot
+         * @param right (meters) right from center of robot
+         * @param up (meters) up from center of robot
+         * @return The object this method is called on after withTranslation has been applied
+         */
+        public LimelightConfig withTranslation(double forward, double right, double up) {
+            this.forward = forward;
+            this.right = right;
+            this.up = up;
+            // WPILib convention: X = forward, Y = LEFT (negate right), Z = up
+            this.cameraPose3d = new Pose3d(forward, -right, up, cameraPose3d.getRotation());
+            return this;
+        }
+
+        /**
+         * Applies the rotation of the limelight from its default position.
+         * The raw fields (roll, pitch, yaw) use Limelight convention.
+         * The cameraPose3d stores the equivalent in WPILib convention:
+         *   - roll:  positive = lean right (same as LL)
+         *   - pitch: positive = nose DOWN  (LL positive = nose UP, so negate)
+         *   - yaw:   positive = CCW        (same as LL)
+         * @param roll (degrees) roll of limelight || positive is rotated right
+         * @param pitch (degrees) pitch of limelight || positive is camera tilted up
+         * @param yaw (degrees) yaw of limelight || positive is rotated left
+         * @return The object this method is called on after withRotation has been applied
+         */
+        public LimelightConfig withRotation(double roll, double pitch, double yaw) {
+            this.roll = roll;
+            this.pitch = pitch;
+            this.yaw = yaw;
+            // WPILib convention: roll same sign, pitch NEGATED, yaw same sign
+            this.cameraPose3d = new Pose3d(cameraPose3d.getTranslation(), new Rotation3d(
+                Units.degreesToRadians(roll), 
+                Units.degreesToRadians(-pitch), 
+                Units.degreesToRadians(yaw)));
+            return this;
+        }
+
+        /**
+         * Applies the attached or unattatched state of the limelight.
+         * @param attached whether or not the limelight is attached
+         * @return The object this method is called on after withAttached has been applied
+         */
+        public LimelightConfig withAttached(boolean attached) {
+            this.attached = attached;
+            return this;
+        }
+    }
+
+    /**
+     * Lazy-cached snapshot of Limelight data for a single cycle.
+     * Values are fetched on-demand and cached until {@link Limelight#invalidateCache()} is called.
+     * This avoids fetching data that isn't used while still preventing redundant NT reads.
+     */
+    public static class LimelightSnapshot {
+        // Cached values
+        public boolean targetInView = false;
+        public double horizontalOffset = 0;
+        public double verticalOffset = 0;
+        public double targetSize = 0;
+        public int tagCount = 0;
+        public double closestTagID = 0;
+        public Pose3d rawPose3d = new Pose3d();
+        public Pose2d megaPose2d = new Pose2d();
+        public double rawPoseTimestamp = 0;
+        public double megaPoseTimestamp = 0;
+        public RawFiducial[] rawFiducials = new RawFiducial[0];
+        public double distanceToTag = 0;
+        
+        // Flags indicating which values have been fetched this cycle
+        public boolean fetchedTv = false;
+        public boolean fetchedTx = false;
+        public boolean fetchedTy = false;
+        public boolean fetchedTa = false;
+        public boolean fetchedTagCount = false;
+        public boolean fetchedClosestTagID = false;
+        public boolean fetchedRawPose3d = false;
+        public boolean fetchedMegaPose2d = false;
+        public boolean fetchedRawPoseTimestamp = false;
+        public boolean fetchedMegaPoseTimestamp = false;
+        public boolean fetchedRawFiducials = false;
+        public boolean fetchedDistanceToTag = false;
+        
+        /** Reset all fetch flags - call at start of each cycle */
+        public void invalidate() {
+            fetchedTv = false;
+            fetchedTx = false;
+            fetchedTy = false;
+            fetchedTa = false;
+            fetchedTagCount = false;
+            fetchedClosestTagID = false;
+            fetchedRawPose3d = false;
+            fetchedMegaPose2d = false;
+            fetchedRawPoseTimestamp = false;
+            fetchedMegaPoseTimestamp = false;
+            fetchedRawFiducials = false;
+            fetchedDistanceToTag = false;
+        }
+    }
+
+    /* Debug */
+    private final DecimalFormat df = new DecimalFormat();
+    @Getter private LimelightConfig config;
+    @Getter @Setter private String logStatus = "";
+    @Getter @Setter private String tagStatus = "";
+
+    // Lazy-cached snapshot - values fetched on-demand and cached for the cycle
+    private final LimelightSnapshot snapshot = new LimelightSnapshot();
+
+    /** Creates a new limelight object.
+     * @param config The limeight config object to use
+     */
+    public Limelight(LimelightConfig config) {
+        this.config = config;
+    }
+
+    /** Creates a new limelight object.
+     * @param name The name of the limelight / limeight config to use
+     */                                         
+    public Limelight(String name) {
+        config = new LimelightConfig(name);
+    }
+
+    /** Creates a new limelight object.
+     * @param name The name of the limelight / limeight config to use
+     * @param attached The state of the limelight (attached or not)
+     */
+    public Limelight(String name, boolean attached) {
+        config = new LimelightConfig(name).withAttached(attached);
+    }
+
+    /** Creates a new limelight object.
+     * @param cameraName The name of the limelight / limeight config to use
+     * @param pipeline The default pipeline to assign the limelight to
+     */
+    public Limelight(String cameraName, int pipeline) {
+        this(cameraName);
+        setLimelightPipeline(pipeline);
+    }
+
+    /**Gets the name of the limelight
+     * @return the name of the limelight
+     */
+    public String getName() {
+        return config.getName();
+    }
+
+    /**Gets the attached state of the limelight
+     * @return the attached state of the limelight
+     */
+    public boolean isAttached() {
+        return config.isAttached();
+    }
+
+    // ======================= LAZY CACHING SYSTEM =======================
+    // Call invalidateCache() ONCE at the start of your subsystem's periodic(),
+    // then use getCached*() methods which fetch on-demand and cache for the cycle.
+
+    /**
+     * Invalidates the cache, causing the next getCached*() calls to fetch fresh data.
+     * Call this ONCE at the start of each periodic cycle.
+     */
+    public void invalidateCache() {
+        snapshot.invalidate();
+    }
+
+    /**
+     * @deprecated Use {@link #invalidateCache()} instead. This method now just invalidates the cache.
+     * The lazy-caching system fetches values on-demand rather than all at once.
+     */
+    @Deprecated
+    public void refreshSnapshot() {
+        invalidateCache();
+    }
+
+    /**
+     * @return The cached snapshot. Use getCached*() methods for lazy-loaded access.
+     */
+    public LimelightSnapshot getSnapshot() {
+        return snapshot;
+    }
+
+    /** @return Cached: Whether there's a valid target in view (lazy-loaded) */
+    public boolean getCachedTargetInView() {
+        if (!isAttached()) {
+            return false;
+        }
+        if (!snapshot.fetchedTv) {
+            snapshot.targetInView = LimelightHelpers.getTV(config.getName());
+            snapshot.fetchedTv = true;
+        }
+        return snapshot.targetInView;
+    }
+
+    /** @return Cached: Horizontal offset to target (lazy-loaded) */
+    public double getCachedHorizontalOffset() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedTx) {
+            snapshot.horizontalOffset = LimelightHelpers.getTX(config.getName());
+            snapshot.fetchedTx = true;
+        }
+        return snapshot.horizontalOffset;
+    }
+
+    /** @return Cached: Vertical offset to target (lazy-loaded) */
+    public double getCachedVerticalOffset() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedTy) {
+            snapshot.verticalOffset = LimelightHelpers.getTY(config.getName());
+            snapshot.fetchedTy = true;
+        }
+        return snapshot.verticalOffset;
+    }
+
+    /** @return Cached: Target size (percentage of image) (lazy-loaded) */
+    public double getCachedTargetSize() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedTa) {
+            snapshot.targetSize = LimelightHelpers.getTA(config.getName());
+            snapshot.fetchedTa = true;
+        }
+        return snapshot.targetSize;
+    }
+
+    /** @return Cached: Number of AprilTags in view (lazy-loaded) */
+    public int getCachedTagCount() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedTagCount) {
+            try {
+                snapshot.tagCount = LimelightHelpers.getBotPoseEstimate_wpiBlue(config.getName()).tagCount;
+            } catch (Exception e) {
+                snapshot.tagCount = 0;
+            }
+            snapshot.fetchedTagCount = true;
+        }
+        return snapshot.tagCount;
+    }
+
+    /** @return Cached: Whether multiple tags are visible (lazy-loaded) */
+    public boolean getCachedMultipleTagsInView() {
+        return getCachedTagCount() > 1;
+    }
+
+    /** @return Cached: Closest tag ID (lazy-loaded) */
+    public double getCachedClosestTagID() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedClosestTagID) {
+            snapshot.closestTagID = LimelightHelpers.getFiducialID(config.getName());
+            snapshot.fetchedClosestTagID = true;
+        }
+        return snapshot.closestTagID;
+    }
+
+    /** @return Cached: Raw 3D pose (MegaTag1) (lazy-loaded) */
+    public Pose3d getCachedRawPose3d() {
+        if (!isAttached()) {
+            return new Pose3d();
+        }
+        if (!snapshot.fetchedRawPose3d) {
+            snapshot.rawPose3d = LimelightHelpers.getBotPose3d_wpiBlue(config.getName());
+            snapshot.fetchedRawPose3d = true;
+        }
+        return snapshot.rawPose3d;
+    }
+
+    /** @return Cached: MegaTag2 pose (lazy-loaded) */
+    public Pose2d getCachedMegaPose2d() {
+        if (!isAttached()) {
+            return new Pose2d();
+        }
+        if (!snapshot.fetchedMegaPose2d) {
+            snapshot.megaPose2d = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(config.getName()).pose;
+            snapshot.fetchedMegaPose2d = true;
+        }
+        return snapshot.megaPose2d;
+    }
+
+    /** @return Cached: Raw pose timestamp (lazy-loaded) */
+    public double getCachedRawPoseTimestamp() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedRawPoseTimestamp) {
+            snapshot.rawPoseTimestamp = LimelightHelpers.getBotPoseEstimate_wpiBlue(config.getName()).timestampSeconds;
+            snapshot.fetchedRawPoseTimestamp = true;
+        }
+        return snapshot.rawPoseTimestamp;
+    }
+
+    /** @return Cached: MegaTag2 pose timestamp (lazy-loaded) */
+    public double getCachedMegaPoseTimestamp() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedMegaPoseTimestamp) {
+            snapshot.megaPoseTimestamp = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(config.getName()).timestampSeconds;
+            snapshot.fetchedMegaPoseTimestamp = true;
+        }
+        return snapshot.megaPoseTimestamp;
+    }
+
+    /** @return Cached: Raw fiducial data array (lazy-loaded) */
+    public RawFiducial[] getCachedRawFiducials() {
+        if (!isAttached()) {
+            return new RawFiducial[0];
+        }
+        if (!snapshot.fetchedRawFiducials) {
+            try {
+                snapshot.rawFiducials = LimelightHelpers.getBotPoseEstimate_wpiBlue(config.getName()).rawFiducials;
+            } catch (Exception e) {
+                snapshot.rawFiducials = new RawFiducial[0];
+            }
+            snapshot.fetchedRawFiducials = true;
+        }
+        return snapshot.rawFiducials;
+    }
+
+    /** @return Cached: Distance to closest tag (lazy-loaded) */
+    public double getCachedDistanceToTag() {
+        if (!isAttached()) {
+            return 0;
+        }
+        if (!snapshot.fetchedDistanceToTag) {
+            Pose3d cameraPoseTS = LimelightHelpers.getCameraPose3d_TargetSpace(config.getName());
+            double x = cameraPoseTS.getX();
+            double y = cameraPoseTS.getZ();
+            snapshot.distanceToTag = Math.sqrt(x * x + y * y);
+            snapshot.fetchedDistanceToTag = true;
+        }
+        return snapshot.distanceToTag;
+    }
+
+    // ======================= END LAZY CACHING =======================
+
+    /**
+     * Using the Limelight's config, sets the Limelight's camera pose in robot space.
+     */
+    public void setCameraPoseInRobotSpace() {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.setCameraPose_RobotSpace(
+            config.name, 
+            config.getForward(), 
+            config.getRight(), 
+            config.getUp(), 
+            config.getRoll(), 
+            config.getPitch(), 
+            config.getYaw());
+    }
+
+    /**
+     * Sets the Limelight's camera pose in robot space using the provided translation and rotation values
+     * in Limelight convention. This is used when the limelight's position on the robot changes, such as
+     * with a turret limelight. Prefer {@link #setCameraPoseInRobotSpace(Pose3d)} for WPILib-convention input.
+     * @param forward The distance of the limelight forward from the center of the robot in meters, where positive is forward.
+     * @param right The distance of the limelight right from the center of the robot in meters, where positive is right.
+     * @param up The distance of the limelight up from the center of the robot in meters, where positive is up.
+     * @param roll The roll of the limelight in degrees, where positive is tilted right.
+     * @param pitch The pitch of the limelight in degrees, where positive is tilted up.
+     * @param yaw The yaw of the limelight in degrees, where positive is rotated left (CCW from above).
+     */
+    public void setCameraPoseInRobotSpace(double forward, double right, double up, double roll, double pitch, double yaw) {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.setCameraPose_RobotSpace(
+            config.name, 
+            forward, 
+            right, 
+            up, 
+            roll, 
+            pitch, 
+            yaw);
+    }
+
+    /**
+     * Sets the Limelight's camera pose in robot space from a WPILib-convention Pose3d.
+     * Converts from WPILib (X=forward, Y=left, Z=up, pitch+=nose-down) to
+     * Limelight convention (forward, right, up, pitch+=nose-up).
+     * @param pose WPILib-convention Pose3d representing the camera pose in robot space.
+     */
+    public void setCameraPoseInRobotSpace(Pose3d pose) {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.setCameraPose_RobotSpace(
+            config.name, 
+            pose.getTranslation().getX(),             // forward (same)
+            -pose.getTranslation().getY(),            // side: WPILib Y=left → LL side=right (negate)
+            pose.getTranslation().getZ(),             // up (same)
+            Units.radiansToDegrees(pose.getRotation().getX()),    // roll (same sign)
+            -Units.radiansToDegrees(pose.getRotation().getY()),   // pitch: WPILib=nose-down → LL=nose-up (negate)
+            Units.radiansToDegrees(pose.getRotation().getZ()));   // yaw (same sign, both CCW+)
+    }
+
+    /* ::: Basic Information Retrieval ::: */
+    /**Gets the horizontal offset of the crosshair from the target using getTX() from the limelight helpers class.
+     * If the limelight is not attached, a value of zero is returned.
+     * @return Horizontal Offset From Crosshair To Target (LL1: -27 degrees to 27 degrees / LL2:
+     *     -29.8 to 29.8 degrees)
+     */
+    public double getHorizontalOffset() {
+        if (!isAttached()) {
+            return 0;
+        }
+        return LimelightHelpers.getTX(config.getName());
+    }
+
+    /**
+     * Gets the vertical offset of the crosshair from the target using getTY() from the limelight helpers class.
+     * @return Vertical Offset From Crosshair To Target in degrees (LL1: -20.5 degrees to 20.5
+     *     degrees / LL2: -24.85 to 24.85 degrees). 
+     * If the limelight is not attached, a value of zero is returned.
+     */
+    public double getVerticalOffset() {
+        if (!isAttached()) {
+            return 0;
+        }
+        return LimelightHelpers.getTY(config.getName());
+    }
+
+    /** 
+     * Determines if any valid targets are in view of the limelight (specified by pipelines) using getTV() from the limelight helpers class.
+     * @return Whether the LL has any valid targets (April tags or other vision targets) 
+     * If the limelight is not attached, return false.*/
+    public boolean targetInView() {
+        if (!isAttached()) {
+            return false;
+        }
+        return LimelightHelpers.getTV(config.getName());
+    }
+
+    /** 
+     * Checks if multiple targets are viewable by the limelight.
+     * @return whether the LL sees multiple tags or not.
+     * If the limelight is not attached, return false.*/
+    public boolean multipleTagsInView() {
+        if (!isAttached()) {
+            return false;
+        }
+        return getTagCountInView() > 1;
+    }
+
+    /** 
+     * Gets the amount of targets viewable by the limelight using a robot pose estimate with getBotPoseEstimate() from LimelightHelpers.
+     * @return whether the LL sees multiple tags or not.
+     * If the limelight is not attached, return false.*/
+    public double getTagCountInView() {
+        if (!isAttached()) {
+            return 0;
+        }
+        try {
+            return LimelightHelpers.getBotPoseEstimate_wpiBlue(config.getName()).tagCount;
+        }
+        catch(Exception e) {
+            return 0;
+        }
+
+        // if (retrieveJSON() == null) return 0;
+
+        // return retrieveJSON().targetingResults.targets_Fiducials.length;
+    }
+
+    /**
+     * Gets the limelight tag at the centermost point of its view using getFiducialID() from the limelighthelpers class.
+     * @return the tag ID of the apriltag most centered in the LL's view (or based on different
+     *     criteria set in LL dasbhoard)
+     * If the limelight is not attahced, return zero.
+     */
+    public double getClosestTagID() {
+        if (!isAttached()) {
+            return 0;
+        }
+        return LimelightHelpers.getFiducialID(config.getName());
+    }
+
+    /**
+     * Gets the target tag area using getTA() from the limelighthelpers class. The target tag area is the 
+     * percentage of the window visible by the camera taken up by the tag, where 100% is the full window
+     * and 0% means it cannot see a tag.
+     * @return the percentage of the limelight's window taken up by a tag
+     * If the limelight is not attahced, return zero.
+     */
+    public double getTargetSize() { // 1-100
+        if (!isAttached()) {
+            return 0;
+        }
+        try {
+            return LimelightHelpers.getTA(config.getName());
+        }
+        catch(Exception e) {
+            return 0;
+        }
+    }
+
+    /* ::: Pose Retrieval ::: */
+
+    /** Gets the limelight pose by using the current robot pose and accounting for the limelight's
+     * offset from the center of the robot. This uses getBotPose3d_wpiBlue() from the limelight helpers class.
+     * @return the corresponding LL Pose3d (MEGATAG1) for the alliance in DriverStation.java 
+     * If no limelight is attached, return a Pose3d() object with no translation or rotation values.*/
+    public Pose3d getRawPose3d() {
+        if (!isAttached()) {
+            return new Pose3d();
+        }
+        return LimelightHelpers.getBotPose3d_wpiBlue(
+                config.name); // 2024: all alliances use blue as 0,0
+    }
+
+    /**
+     * Gets the april tag pose2d by using the current robot pose and accounting for the limelight's
+     * offset from the center of the robot. This uses getBotPose3d_wpiBlue() from the limelight helpers class,
+     * including logic with the MegaTag2 object which runs these calculations given the robot pose. 
+     * @return the corresponding LL Pose2d (MEGATAG2) for the alliance in DriverStation.java 
+     * If no limelight is attached, return a Pose2d() object with no translatoin or rotation values.*/
+    public Pose2d getMegaPose2d() {
+        if (!isAttached()) {
+            return new Pose2d();
+        }
+        return LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(config.name).pose; // 2024: all alliances use blue as 0,0
+    }
+
+    /**
+     * Gets the camera pose3d by using the offset of the camera to the tag, but creates the pose 
+     * centered around the tag. Aligning via these values instead of robot pose is often more robust
+     * to discrepancies in field setup.
+     * @return the camera's pose with the origin at the tag
+     */
+    public Pose3d getCameraPoseTS3d() {
+        if(!isAttached()) {
+            return new Pose3d();
+        }
+        return LimelightHelpers.getCameraPose3d_TargetSpace(config.name);
+    }
+
+    public double[] getRobotPoseTS() {
+        if(!isAttached()) {
+            return new double[0];
+        }
+        return LimelightHelpers.getBotPose_TargetSpace(config.name);
+    }
+
+    /** Leverages the limelight's view of multiple tags and their distance from the robot to check if the
+     * robot pose and/or limelight pose are more accurate than a basic pose update from the gyro/accelerometer.
+     * @retrun If the position is "accurate".
+     * If no limelight is attached, return false.
+     */
+    public boolean hasAccuratePose() {
+        if (!isAttached()) {
+            return false;
+        }
+        return multipleTagsInView() && getTargetSize() > 0.1;
+    }
+
+    /** Determines the distance from the tag and the limelight as a vector. We can use x and y distances
+     * and pythagorean therom to determines the distance in a straight line.
+     * @return the distance of the 2d vector from the camera to closest apriltag
+     *  If no limelight is attached, return a distance of zero. */
+    public double getDistanceToTagFromCamera() {
+        if (!isAttached()) {
+            return 0;
+        }
+        double x = LimelightHelpers.getCameraPose3d_TargetSpace(config.name).getX();
+        double y = LimelightHelpers.getCameraPose3d_TargetSpace(config.name).getZ();
+        return Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+    }
+
+    /** Gets an array of the raw network table ouput (the raw april tag data)*/
+    public RawFiducial[] getRawFiducial() {
+        return LimelightHelpers.getBotPoseEstimate_wpiBlue(config.name).rawFiducials;
+    }
+
+    /**
+     * Returns the timestamp of the MEGATAG1 pose estimation from the Limelight camera.
+     * @return The timestamp of the pose estimation in seconds.
+     *  If no limelight is attached, return a time value of zero.
+     */
+    public double getRawPoseTimestamp() {
+        if (!isAttached()) {
+            return 0;
+        }
+        return LimelightHelpers.getBotPoseEstimate_wpiBlue(config.getName()).timestampSeconds;
+    }
+
+    /**
+     * Returns the timestamp of the MEGATAG2 pose estimation from the Limelight camera.
+     * @return The timestamp of the pose estimation in seconds.
+     *  If no limelight is attached, return a distance of zero.
+     */
+    public double getMegaPoseTimestamp() {
+        if (!isAttached()) {
+            return 0;
+        }
+        return LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(config.getName())
+                .timestampSeconds;
+    }
+
+    /**
+     * Returns the latency of the pose estimation from the Limelight camera.
+     * @return The latency of the pose estimation in seconds.
+     *  If no limelight is attached, return a distance of zero.
+     */
+    @Deprecated(forRemoval = true)  //declare this method as deprecated for removal
+    public double getPoseLatency() {
+        if (!isAttached()) {
+            return 0;
+        }
+        return Units.millisecondsToSeconds(
+                LimelightHelpers.getBotPose_wpiBlue(config.getName())[6]);
+    }
+
+    /*
+     * Custom Helpers
+     */
+
+    /**
+     * Get distance in meters to a target
+     * @param targetHeight height of the target in meters
+     * @return the distance of the liemlight to the target in meters.
+     *  If no limelight is attached, return a distance of zero.
+     */
+    public double getDistanceToTarget(double targetHeight) {
+        if (!isAttached()) {
+            return 0;
+        }
+        return (targetHeight - config.up)
+                / Math.tan(Units.degreesToRadians(config.roll + getVerticalOffset()));
+    }
+
+    /** Log the validity of the limelight as valid. Used when any and all
+     *  required conditions for the limelight are met.
+     * @param message The message to display alongside the status signal.  */
+    public void sendValidStatus(String message) {
+        config.isIntegrating = true;
+        logStatus = message;
+    }
+
+    /** Log the validity of the limelight as invalid. Used when any
+     *  required conditions for the limelight are not met.
+     * @param message The message to display alongside the status signal.*/
+    public void sendInvalidStatus(String message) {
+        config.isIntegrating = false;
+        logStatus = message;
+    }
+
+    /*
+     * Utility Wrappers
+     */
+
+    /** @return The latest LL results as a LimelightResults object. */
+    @SuppressWarnings("unused")
+    private LimelightResults retrieveJSON() {
+        return LimelightHelpers.getLatestResults(config.name);
+    }
+
+    public enum IMUMode {
+        EXTERNAL_ONLY,
+        EXTERNAL_SEED,
+        INTERNAL_ONLY,
+        INTERNAL_MT1_ASSIST,
+        INTERNAL_EXTERNAL_ASSIST
+    }
+    public void setIMUMode(IMUMode m) {
+        LimelightHelpers.SetIMUMode(config.name, m.ordinal());
+    }
+
+    /**
+     * Sets the alpha value for the IMU assist mode, which determines how much the limelight's pose estimation relies on the IMU data versus its own vision data.
+     * @param alpha Low values (0.001) = slower drift correction. This is the default. High values (0.01) = faster drift correction.
+     */
+    public void setIMUAssistAlpha(double alpha) {
+        LimelightHelpers.SetIMUAssistAlpha(config.name, alpha);
+    }
+
+    /**
+     * Sets the number of frames to skip before the limelight updates its pose estimation. 
+     * This can be used to reduce the amount of processing the limelight does, which can improve performance at the cost of less frequent updates.
+     * @param throttle The number of frames to skip before updating pose estimation. A value of 0 means no throttling (update every frame), a value of 1 means update every other frame, etc.
+     */
+    public void setThrottle(int throttle) {
+        LimelightHelpers.SetThrottle(config.name, throttle);
+    }
+
+    /** Sets the limelight target pipeline. Nothing happens if the limelight is not attached.
+     * @param pipelineIndex use pipeline indexes in {@link VisionConfig} */
+    public void setLimelightPipeline(int pipelineIndex) {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.setPipelineIndex(config.name, pipelineIndex);
+    }
+
+    public int getLimelightPipeline() {
+        if (!isAttached()) {
+            return -1;
+        }
+        return (int) LimelightHelpers.getCurrentPipelineIndex(config.name);
+    }
+
+
+    public void setRobotOrientation(double degrees) {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.SetRobotOrientation(config.name, degrees, 0.0, 0.0, 0.0, 0.0, 0.0);
+    }
+
+    public void setRobotOrientation(double degrees, double angularRate) {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.SetRobotOrientation(config.name, degrees, angularRate, 0, 0, 0, 0);
+    }
+
+    /**
+     * Sets the LED mode of the LL.
+     *  If no limelight is attached, nothing will happen.
+     * @param enabled true to enable the LED mode, false to disable it
+     */
+    public void setLEDMode(boolean enabled) {
+        if (!isAttached()) {
+            return;
+        }
+        if (enabled) {
+            LimelightHelpers.setLEDMode_ForceOn(config.getName());
+        } else {
+            LimelightHelpers.setLEDMode_ForceOff(config.getName());
+        }
+    }
+
+    /**
+     * Set LL LED's to blink
+     */
+    public void blinkLEDs() {
+        if (!isAttached()) {
+            return;
+        }
+        LimelightHelpers.setLEDMode_ForceBlink(config.getName());
+    }
+
+    /** Checks if the camera is connected by looking for an empty botpose array from camera. 
+     * @return if the camera is connected
+    */
+    public boolean isCameraConnected() {
+        if (!isAttached()) {
+            return false;
+        }
+        try {
+            var rawPoseArray =
+                    LimelightHelpers.getLimelightNTTableEntry(config.getName(), "botpose_wpiblue")
+                            .getDoubleArray(new double[0]);
+            if (rawPoseArray.length < 6) {
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            System.err.println("Avoided crashing statement in Limelight.java: isCameraConnected()");
+            return false;
+        }
+    }
+
+    /** Prints the vision, estimated, and odometry pose to SmartDashboard */
+    public void printDebug() {
+        if (!isAttached()) {
+            return;
+        }
+        Pose3d botPose3d = getRawPose3d();
+        SmartDashboard.putString("LimelightX", df.format(botPose3d.getTranslation().getX()));
+        SmartDashboard.putString("LimelightY", df.format(botPose3d.getTranslation().getY()));
+        SmartDashboard.putString("LimelightZ", df.format(botPose3d.getTranslation().getZ()));
+        SmartDashboard.putString(
+                "LimelightRoll", df.format(Units.radiansToDegrees(botPose3d.getRotation().getX())));
+        SmartDashboard.putString(
+                "LimelightPitch",
+                df.format(Units.radiansToDegrees(botPose3d.getRotation().getY())));
+        SmartDashboard.putString(
+                "LimelightYaw", df.format(Units.radiansToDegrees(botPose3d.getRotation().getZ())));
+    }
+}
