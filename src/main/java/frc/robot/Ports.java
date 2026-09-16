@@ -20,6 +20,7 @@ import static frc.lib.utils.SKTrigger.INPUT_TYPE.BUTTON;
 import static frc.lib.utils.SKTrigger.INPUT_TYPE.POV;
 
 import edu.wpi.first.wpilibj.GenericHID;
+import frc.lib.utils.CANPort;
 import frc.lib.utils.GuitarHeroController;
 import frc.lib.utils.SKTrigger;
 import frc.lib.utils.filters.FilteredAxis;
@@ -126,6 +127,13 @@ public class Ports
     {
         /** Guitar Hero controller on USB port 2. */
         public static final GuitarHeroController kGuitar = new GuitarHeroController(2);
+    }
+
+    public static class IntakePorts {
+        
+        private static final String busName = "";
+
+        public static final CANPort kIntakeMotor = new CANPort(59, busName);
     }
 
 
