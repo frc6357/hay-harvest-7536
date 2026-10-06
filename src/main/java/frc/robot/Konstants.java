@@ -123,82 +123,9 @@ public final class Konstants
 
     public static final class IntakeConstants
     {
-        public static enum IntakePosition
-        {
-            /** Set the intake angle to -0.235 intake rotations */
-            GROUND(-0.235), // -0.02 with encoder
-            /** Set the intake angle to 0.02 intake rotations */
-            COMPACTING(0.02),
-            /** Set the intake angle to 0 rotations (zero position) */
-            STOW(0.0),
-            /** Set the intake angle so far back that it guarantees a full stow even with bad PID tuning */
-            FULL_STOW(0.1);
-
-            /**
-             * The target position for the intake in mechanism rotations (not motor rotations). Positive is up, negative is down.
-             */
-            public final double rotations;
-            IntakePosition(double rotations)
-            {
-                this.rotations = rotations;
-            }
-        }
-
-        // PID Constants
-        public static final double kPositionerKp = 12.5; //20
-        public static final double kPositionerKi = 2.0;
-        public static final double kPositionerKd = 0.5;
-        public static final double kPositionerKs = 0.5;
-        public static final double kPositionerKv = 0.0;
-        public static final double kPositionerKa = 0.0;
-        public static final double kPositionerKG = 0.0;
-
-        // Positioner voltage limits
-        public static final double kPositionerPeakForwardVoltage = 4.0;
-        public static final double kPositionerPeakReverseVoltage = -4.0;
-
-        // Positioner Motion Magic configuration
-        public static final double kPositionerMMCruiseVelocity = 2.0;      // Rotations per second
-        public static final double kPositionerMMAcceleration = 25.0;       // Rotations per second squared
-        public static final double kPositionerMMJerk = 50.0;               // Rotations per second cubed
-        public static final double kPositionerMMExpoKV = 0.12;
-        public static final double kPositionerMMExpoKA = 0.1;
-
-        // Positioner current limits
-        public static final double kPositionerSupplyCurrentLimit = 70;
-        public static final double kPositionerStatorCurrentLimit = 120;
-
-        // Positioner feedback configuration
-        public static final double kPositionerSensorToMechanismRatio = 16.4;
-        public static final double kPositionerGainSchedulerErrorThreshold = 0.03;
-        public static final double kPositionerPositionTolerance = 0.03;    // Rotations
-
-        // Absolute encoder (CANcoder) configuration
-        public static final double kPositionerEncoderOffset = -0.87548828125;         // Rotations (-0.5 to +0.5) — set after measuring zero
-        public static final boolean kPositionerEncoderInverted = false;    // Set true if encoder reads backwards
-        public static final double kPositionerEncoderGearRatio = 17.76;      // was 3.636363636363
-        public static final double kPositionerEncoderDiscontinuityPoint = 1;
-
-        // Intake roller current limits
-        public static final double kIntakeSupplyCurrentLimit = 40;
-        public static final double kIntakeStatorCurrentLimit = 60;
-
-        // Intake compact command oscillation
-        public static final double kIntakeCompactSwitchIntervalSeconds = 0.387;
-
-        public static final double kIntakeMotorSpeed = 0.5;
-        public static final double kPositionerMotorSpeed = 0.5;
-
-        public static final double kPositionerMotorMinPosition = 0.5;
-        public static final double kPositionMotorMaxPosition = 0.5;
-
-        public static final double kMaxIntakeVoltage = 8.0;
-
-        public static final double kIntakeFullVoltage = -5.5;
-        public static final double kIntakeStationaryVoltage = -4.0;
-        public static final double kIntakeIdleVoltage = 0.0;
-
-        public static final double kChassisSpeedRollerFF = 1.4; // Volts of output per m/s of velocity in the intake's direction
+        public static final double kIntakeMotorP = 0.0;
+        public static final double kIntakeMotorI = 0.0;
+        public static final double kIntakeMotorD = 0.0;
     }
 
     public static final String kCANivoreName = "SwerveCANivore";
