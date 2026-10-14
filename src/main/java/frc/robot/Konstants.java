@@ -123,9 +123,17 @@ public final class Konstants
 
     public static final class IntakeConstants
     {
-        public static final double kIntakeMotorP = 0.0;
-        public static final double kIntakeMotorI = 0.0;
-        public static final double kIntakeMotorD = 0.0;
+        public static final double kIntakeRollerMotorP = 0.0;
+        public static final double kIntakeRollerMotorI = 0.0;
+        public static final double kIntakeRollerMotorD = 0.0;
+
+        public static final double kIntakePivotMotorP = 0.0;
+        public static final double kIntakePivotMotorI = 0.0;
+        public static final double kIntakePivotMotorD = 0.0;
+
+        public static final double kIntakePivotStowed = 0.0;
+        public static final double kIntakePivotDeployed = 90.0;
+        public static final double kIntakePivotSpeed = 0.0;
     }
 
     public static final String kCANivoreName = "SwerveCANivore";

@@ -6,38 +6,63 @@ import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
-import static frc.robot.Ports.IntakePorts.kIntakeMotor;
+import static frc.robot.Ports.IntakePorts.kIntakePivotMotor;
+import static frc.robot.Ports.IntakePorts.kIntakeRollerMotor;
 
 import org.littletonrobotics.junction.Logger;
 
-import static frc.robot.Konstants.IntakeConstants.kIntakeMotorP;
-import static frc.robot.Konstants.IntakeConstants.kIntakeMotorI;
-import static frc.robot.Konstants.IntakeConstants.kIntakeMotorD;
+import static frc.robot.Konstants.IntakeConstants.kIntakeRollerMotorP;
+import static frc.robot.Konstants.IntakeConstants.kIntakeRollerMotorI;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotMotorD;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotMotorI;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotMotorP;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotSpeed;
+import static frc.robot.Konstants.IntakeConstants.kIntakeRollerMotorD;
 
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import lombok.Getter;
+import lombok.Setter;
 
 public class SKIntake extends SubsystemBase {
 
-    SparkFlex intakeMotor  = new SparkFlex(kIntakeMotor.ID, MotorType.kBrushless);
-    SparkFlexConfig config = new SparkFlexConfig();
+    SparkFlex intakeRollerMotor = new SparkFlex(kIntakeRollerMotor.ID, MotorType.kBrushless);
+    SparkFlex intakePivotMotor = new SparkFlex(kIntakePivotMotor.ID, MotorType.kBrushless);
+
+    SparkFlexConfig rollerConfig = new SparkFlexConfig();
+    SparkFlexConfig pivotConfig = new SparkFlexConfig();
+
+    @Getter
+    @Setter
+    public boolean isIntakeDeployed = false;
+
+    public boolean isIntakeAtTarget = false;
 
     public SKIntake() {
 
-        config.inverted(false);
-        config.closedLoop
-        .p(kIntakeMotorP)
-        .i(kIntakeMotorI)
-        .d(kIntakeMotorD);
+        rollerConfig.inverted(false);
+        rollerConfig.closedLoop.p(kIntakeRollerMotorP).i(kIntakeRollerMotorI).d(kIntakeRollerMotorD);
 
-        intakeMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+        pivotConfig.inverted(false);
+        pivotConfig.closedLoop.p(kIntakePivotMotorP).i(kIntakePivotMotorI).d(kIntakePivotMotorD);
+
+        intakeRollerMotor.configure(rollerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+        intakePivotMotor.configure(pivotConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
     }
 
-    public void runIntake(double speed) {
-        intakeMotor.set(speed);
+    public void runIntakeRollers(double speed) {
+        intakeRollerMotor.set(speed);
     }
 
-    public void stopIntake() {
-        intakeMotor.set(0);
+    public void stopIntakeRollers() {
+        intakeRollerMotor.set(0);
+    }
+
+    public void runIntakePivot() {
+        intakePivotMotor.set(kIntakePivotSpeed);
+    }
+
+    public void stopIntakePivot() {
+        intakePivotMotor.set(0);
     }
 
     @Override
@@ -46,7 +71,8 @@ public class SKIntake extends SubsystemBase {
     }
 
     public void logOutputs() {
-        Logger.recordOutput("Intake Roller Motor Speed", intakeMotor.getEncoder().getVelocity());
+        Logger.recordOutput("Intake Roller Motor Speed", intakeRollerMotor.getEncoder().getVelocity());
+        Logger.recordOutput("Is Intake Pivot At Target Position", isIntakeAtTarget);
     }
     
 }
