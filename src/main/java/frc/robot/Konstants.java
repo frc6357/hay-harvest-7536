@@ -121,6 +121,33 @@ public final class Konstants
         public static final double kExampleSpeed = 0.5;  //percentage based where 1.0 is max power and 0.0 is minimum
     }
 
+    public static final class LauncherConstants {
+
+        //initialize PID values
+        public static final double kLauncherA = 0.0;
+        public static final double kLauncherV = 0.093;
+        public static final double kLauncherS = 0.25;
+
+        public static final double kWheelRadius = .0381; // meters (1.5 inch radius)
+        public static final double kSlipRatio = 0.85; // Ball velocity / wheel velocity (1.0 = no slip, < 1.0 = ball slower)
+        public static final double kShooterTolerance = 0.5; // +/- rps
+        public static final double kTargetlaunchVelocity = 5; //meters per second
+        public static final double kTargetMotorRPS = 15.665; //matches with kTargetLaunchVelocity
+        public static final double kCoastLauncherRPS = 0.25; //RPS of launcher when waiting to shoots
+        public static final double kStopLauncher = 0; // velocity/motorRPS of stopped motor
+
+        public static final class Slot0 {
+            public static final double kP = 1.8;
+            public static final double kI = 0;
+            public static final double kD = 0;
+        }
+        public static final class Slot1 {
+            public static final double kP = 0.5;
+            public static final double kI = 0;
+            public static final double kD = 0;
+        }
+    }
+
     public static final class IntakeConstants
     {
         public static enum IntakePosition
