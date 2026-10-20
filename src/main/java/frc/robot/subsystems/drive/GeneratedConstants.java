@@ -138,7 +138,7 @@ public class GeneratedConstants {
     private static final int kFrontLeftSteerMotorId = 21;
     private static final int kFrontLeftEncoderId = 1;
     private static final Angle kFrontLeftEncoderOffset = Rotations.of(0.20947265625);
-    private static final boolean kFrontLeftSteerMotorInverted = false;
+    private static final boolean kFrontLeftSteerMotorInverted = true;
     private static final boolean kFrontLeftEncoderInverted = false;
 
     private static final Distance kFrontLeftXPos = Inches.of(11.25);
