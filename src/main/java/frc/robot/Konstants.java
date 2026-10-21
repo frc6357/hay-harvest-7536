@@ -123,17 +123,19 @@ public final class Konstants
 
     public static final class IntakeConstants
     {
-        public static final double kIntakeRollerMotorP = 0.0;
-        public static final double kIntakeRollerMotorI = 0.0;
-        public static final double kIntakeRollerMotorD = 0.0;
+        // Roller runs open loop on voltage so speed doesn't drop as the battery sags
+        public static final double kIntakeRollerIntakeVolts = 8.0;
+        public static final double kIntakeRollerEjectVolts = -6.0;
+        public static final int kIntakeRollerCurrentLimit = 40; // amps
 
         public static final double kIntakePivotMotorP = 0.0;
         public static final double kIntakePivotMotorI = 0.0;
         public static final double kIntakePivotMotorD = 0.0;
 
+        // Pivot positions are in motor rotations (no conversion factor set) - measure these on the robot
         public static final double kIntakePivotStowed = 0.0;
         public static final double kIntakePivotDeployed = 90.0;
-        public static final double kIntakePivotSpeed = 0.0;
+        public static final double kIntakePivotTolerance = 0.5; // rotations from target that counts as "at target"
     }
 
     public static final String kCANivoreName = "SwerveCANivore";

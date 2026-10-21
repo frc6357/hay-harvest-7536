@@ -135,6 +135,7 @@ public class Ports
 
         public static final CANPort kIntakeRollerMotor = new CANPort(40, busName);
         public static final CANPort kIntakePivotMotor = new CANPort(41, busName);
+        public static final CANPort kIntakePivotFollower = new CANPort(42, busName);
     }
 
 
