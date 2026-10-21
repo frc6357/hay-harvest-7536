@@ -15,11 +15,17 @@ import static frc.robot.Ports.IntakePorts.kIntakeRollerMotor;
 
 import org.littletonrobotics.junction.Logger;
 
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotCurrentLimit;
 import static frc.robot.Konstants.IntakeConstants.kIntakePivotDeployed;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotGearRatio;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotGravityVolts;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotMaxOutput;
 import static frc.robot.Konstants.IntakeConstants.kIntakePivotMotorD;
 import static frc.robot.Konstants.IntakeConstants.kIntakePivotMotorI;
 import static frc.robot.Konstants.IntakeConstants.kIntakePivotMotorP;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotSoftLimitMargin;
 import static frc.robot.Konstants.IntakeConstants.kIntakePivotStowed;
+import static frc.robot.Konstants.IntakeConstants.kIntakePivotStowedAngle;
 import static frc.robot.Konstants.IntakeConstants.kIntakePivotTolerance;
 import static frc.robot.Konstants.IntakeConstants.kIntakeRollerCurrentLimit;
 import static frc.robot.Konstants.IntakeConstants.kIntakeRollerEjectVolts;
@@ -57,13 +63,27 @@ public class SKIntake extends SubsystemBase {
         rollerConfig.smartCurrentLimit(kIntakeRollerCurrentLimit);
 
         pivotConfig.inverted(false);
+        pivotConfig.idleMode(IdleMode.kBrake); // keeps the intake from dropping when disabled
+        pivotConfig.smartCurrentLimit(kIntakePivotCurrentLimit);
         pivotConfig.closedLoop
             .p(kIntakePivotMotorP)
             .i(kIntakePivotMotorI)
             .d(kIntakePivotMotorD)
+            .outputRange(-kIntakePivotMaxOutput, kIntakePivotMaxOutput) // speed cap so the pivot doesn't slam
             .allowedClosedLoopError(kIntakePivotTolerance, ClosedLoopSlot.kSlot0);
 
+        // Soft limits a little past stowed/deployed so a bad setpoint or manual control can't drive into the frame.
+        // min/max so this works no matter which direction deployed is
+        pivotConfig.softLimit
+            .forwardSoftLimit(Math.max(kIntakePivotStowed, kIntakePivotDeployed) + kIntakePivotSoftLimitMargin)
+            .forwardSoftLimitEnabled(true)
+            .reverseSoftLimit(Math.min(kIntakePivotStowed, kIntakePivotDeployed) - kIntakePivotSoftLimitMargin)
+            .reverseSoftLimitEnabled(true);
+
+        // Follow mode only copies the output, so the follower needs its own brake mode and current limit
         pivotFollowerConfig.follow(intakePivotMotor, true);
+        pivotFollowerConfig.idleMode(IdleMode.kBrake);
+        pivotFollowerConfig.smartCurrentLimit(kIntakePivotCurrentLimit);
 
         intakeRollerMotor.configure(rollerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
         intakePivotMotor.configure(pivotConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
@@ -105,10 +125,28 @@ public class SKIntake extends SubsystemBase {
             this::stopIntakeRollers);
     }
 
-    /** Moves the pivot to a position (motor rotations) using the Spark's onboard PID */
+    /**
+     * Moves the pivot to a position (motor rotations) using the Spark's onboard PID, plus a gravity feedforward.
+     * The feedforward depends on the arm's angle, so this needs to be called every loop (the hold command does this)
+     */
     public void setPivotPosition(double position) {
         pivotTargetPosition = position;
-        intakePivotMotor.getClosedLoopController().setSetpoint(position, ControlType.kPosition);
+        intakePivotMotor.getClosedLoopController().setSetpoint(
+            position, ControlType.kPosition, ClosedLoopSlot.kSlot0, getGravityFeedforward());
+    }
+
+    /** Angle of the arm in degrees above level, worked out from the encoder (which reads 0 at stowed) */
+    public double getPivotAngleDegrees() {
+        double towardDeployed = Math.signum(kIntakePivotDeployed - kIntakePivotStowed);
+        double degreesMovedTowardDeployed =
+            towardDeployed * (getPivotPosition() - kIntakePivotStowed) / kIntakePivotGearRatio * 360.0;
+        return kIntakePivotStowedAngle - degreesMovedTowardDeployed;
+    }
+
+    /** Volts that cancel gravity - strongest when the arm is level, zero when straight up, always pushes the arm up */
+    private double getGravityFeedforward() {
+        double towardDeployed = Math.signum(kIntakePivotDeployed - kIntakePivotStowed);
+        return -towardDeployed * kIntakePivotGravityVolts * Math.cos(Math.toRadians(getPivotAngleDegrees()));
     }
 
     /**
@@ -119,6 +157,15 @@ public class SKIntake extends SubsystemBase {
     public void runPivotManual(double speed) {
         intakePivotMotor.set(speed);
         pivotTargetPosition = intakePivotMotor.getEncoder().getPosition();
+    }
+
+    public double getPivotPosition() {
+        return intakePivotMotor.getEncoder().getPosition();
+    }
+
+    /** True if the pivot's actual position is within tolerance of the given position */
+    public boolean isPivotNear(double position) {
+        return Math.abs(getPivotPosition() - position) <= kIntakePivotTolerance;
     }
 
     /** Keeps refreshing the closed loop to the last target position */
@@ -152,7 +199,13 @@ public class SKIntake extends SubsystemBase {
         Logger.recordOutput("Intake Roller Current", intakeRollerMotor.getOutputCurrent());
         Logger.recordOutput("Intake Pivot Position", intakePivotMotor.getEncoder().getPosition());
         Logger.recordOutput("Intake Pivot Target Position", pivotTargetPosition);
+        Logger.recordOutput("Intake Pivot Angle", getPivotAngleDegrees());
+        Logger.recordOutput("Intake Pivot Gravity FF Volts", getGravityFeedforward());
         Logger.recordOutput("Is Intake Pivot At Target Position", isIntakeAtTarget);
+        // Follower position should move the opposite way to the leader's when the arm moves (since it's inverted)
+        Logger.recordOutput("Intake Pivot Follower Position", intakePivotFollower.getEncoder().getPosition());
+        Logger.recordOutput("Intake Pivot Current", intakePivotMotor.getOutputCurrent());
+        Logger.recordOutput("Intake Pivot Follower Current", intakePivotFollower.getOutputCurrent());
     }
     
 }

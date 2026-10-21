@@ -12,15 +12,18 @@ public class SubsystemControls
 
     private final boolean swerve;
     private final boolean vision;
+    private final boolean intake;
 
     public SubsystemControls(
         @JsonProperty(required = true, value = "swerve")      boolean swerve,
-        @JsonProperty(required = true, value = "vision")      boolean vision
+        @JsonProperty(required = true, value = "vision")      boolean vision,
+        @JsonProperty(required = true, value = "intake")      boolean intake
     )
 
     {
         this.swerve = swerve;
         this.vision = vision;
+        this.intake = intake;
     }
 
 
@@ -29,5 +32,8 @@ public class SubsystemControls
     }
     public boolean isVisionPresent() {
         return vision;
+    }
+    public boolean isIntakePresent() {
+        return intake;
     }
 }
