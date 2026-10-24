@@ -1,6 +1,7 @@
 {
-    
+
     "swerve": true,
     "intake": true,
-    "vision": false
+    "vision": false,
+    "launcher": true
 }

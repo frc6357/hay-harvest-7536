@@ -28,6 +28,7 @@ import frc.lib.commands.PathPlannerCommands;
 import frc.lib.utils.filters.FilteredJoystick;
 import frc.robot.Robot.RobotMode;
 import frc.robot.StateHandler.MacroState;
+import frc.robot.bindings.SK26HayLauncherBinder;
 import frc.robot.bindings.SK26StateBinder;
 import frc.robot.bindings.SKIntakeBinder;
 import frc.robot.bindings.SKSwerveBinder;
@@ -36,6 +37,7 @@ import frc.robot.bindings.SKVisionBinder;
 import frc.robot.subsystems.SubsystemControls;
 import frc.robot.subsystems.Intake.SKIntake;
 import frc.robot.subsystems.drive.SKSwerve;
+import frc.robot.subsystems.shooter.SK26HayLauncher;
 import frc.robot.subsystems.vision.SKVision;
 
 
@@ -51,6 +53,7 @@ public class RobotContainer {
   public Optional<SKVision> m_visionContainer = Optional.empty();
   public Optional<SKIntake> m_intakeContainer = Optional.empty();
   public Optional<StateHandler> m_stateHandlerContainer = Optional.empty();
+  public Optional<SK26HayLauncher> m_launcherContainer = Optional.empty();
 
   public static Field2d m_field = new Field2d();
 
@@ -106,6 +109,8 @@ public class RobotContainer {
                 }
                 if(subsystems.isIntakePresent()) {
                     m_intakeContainer = Optional.of(new SKIntake());
+                if(subsystems.isLauncherPresent()) {
+                    m_launcherContainer = Optional.of(new SK26HayLauncher());
                 }
             }
             // When robot is real or is replaying a real match:
@@ -118,6 +123,8 @@ public class RobotContainer {
                 }
                 if(subsystems.isIntakePresent()) {
                     m_intakeContainer = Optional.of(new SKIntake());
+                if(subsystems.isLauncherPresent()) {
+                    m_launcherContainer = Optional.of(new SK26HayLauncher());
                 }
             }
         }
@@ -140,6 +147,7 @@ public class RobotContainer {
         buttonBinders.add(new SKTargetPointsBinder());
         buttonBinders.add(new SKVisionBinder(m_visionContainer, m_swerveContainer));
         buttonBinders.add(new SKIntakeBinder(m_intakeContainer));
+        buttonBinders.add(new SK26HayLauncherBinder(m_launcherContainer));
         // Traversing through all the binding classes to actually bind the buttons
         for (CommandBinder subsystemGroup : buttonBinders)
         {
