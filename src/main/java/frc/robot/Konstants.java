@@ -134,7 +134,7 @@ public final class Konstants
 
         // Pivot positions are in motor rotations (no conversion factor set) - measure these on the robot
         public static final double kIntakePivotStowed = 0.0;
-        public static final double kIntakePivotDeployed = 2.5; // ESTIMATE (~90 deg of arm at 10:1) - measure on the robot
+        public static final double kIntakePivotDeployed = 1.5; // 54 deg of arm travel at 10:1 (54 / 360 * 10)
         public static final double kIntakePivotTolerance = 0.05; // rotations from target that counts as "at target" (~2 deg of arm)
         public static final double kIntakeRollerStartTolerance = 0.25; // how close to deployed before the rollers start (~9 deg of arm)
 
@@ -142,10 +142,10 @@ public final class Konstants
         public static final double kIntakePivotMaxOutput = 0.25; // speed cap for the pivot PID, 0 to 1
         public static final double kIntakePivotSoftLimitMargin = 0.15; // rotations the pivot may go past stowed/deployed (~5 deg of arm)
 
-        // Gravity feedforward - volts needed to hold the arm still when it's level. Only correct once kIntakePivotStowedAngle is measured
+        // Gravity feedforward - volts needed to hold the arm still when it's level
         public static final double kIntakePivotGravityVolts = 2.0; // starting estimate, expect ~2.5-3 for 15 lb at 10:1
         public static final double kIntakePivotGearRatio = 10.0; // motor rotations per one full rotation of the arm
-        public static final double kIntakePivotStowedAngle = 90.0; // degrees above level when stowed - PLACEHOLDER
+        public static final double kIntakePivotStowedAngle = 84.0; // degrees above level when stowed (deployed is 30 above level + 54 of travel)
     }
 
     public static final String kCANivoreName = "SwerveCANivore";
