@@ -1,6 +1,6 @@
 {
     
     "swerve": true,
-    "vision": true,
-    "intake": true
+    "intake": true,
+    "vision": false
 }
