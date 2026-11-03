@@ -109,6 +109,7 @@ public class RobotContainer {
                 }
                 if(subsystems.isIntakePresent()) {
                     m_intakeContainer = Optional.of(new SKIntake());
+                }
                 if(subsystems.isLauncherPresent()) {
                     m_launcherContainer = Optional.of(new SK26HayLauncher());
                 }
@@ -123,6 +124,7 @@ public class RobotContainer {
                 }
                 if(subsystems.isIntakePresent()) {
                     m_intakeContainer = Optional.of(new SKIntake());
+                }
                 if(subsystems.isLauncherPresent()) {
                     m_launcherContainer = Optional.of(new SK26HayLauncher());
                 }
