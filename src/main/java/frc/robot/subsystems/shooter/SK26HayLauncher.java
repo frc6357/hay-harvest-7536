@@ -146,11 +146,27 @@ public class SK26HayLauncher extends SubsystemBase {
     }
 
     private void configureMotors() {
-        SparkFlexConfig bottomConfig = baseConfig();
+        SparkFlexConfig bottomConfig = new SparkFlexConfig();
+        bottomConfig
+        .inverted(false)
+        .idleMode(IdleMode.kCoast)
+        .voltageCompensation(kNominalVoltage)
+        .smartCurrentLimit(kSmartCurrentLimit);
+        bottomConfig.encoder
+            .uvwMeasurementPeriod(16)
+            .uvwAverageDepth(2);
         bottomConfig.closedLoop.pid(BottomRoller.kP, BottomRoller.kI, BottomRoller.kD);
         bottomConfig.closedLoop.feedForward.sv(BottomRoller.kS, BottomRoller.kV);
 
-        SparkFlexConfig topConfig = baseConfig();
+        SparkFlexConfig topConfig = new SparkFlexConfig();
+        topConfig
+        .inverted(true)
+        .idleMode(IdleMode.kCoast)
+        .voltageCompensation(kNominalVoltage)
+        .smartCurrentLimit(kSmartCurrentLimit);
+        topConfig.encoder
+            .uvwMeasurementPeriod(16)
+            .uvwAverageDepth(2);
         topConfig.closedLoop.pid(TopRoller.kP, TopRoller.kI, TopRoller.kD);
         topConfig.closedLoop.feedForward.sv(TopRoller.kS, TopRoller.kV);
 
@@ -169,7 +185,7 @@ public class SK26HayLauncher extends SubsystemBase {
         }
     }
 
-    private SparkFlexConfig baseConfig() {
+   /* private SparkFlexConfig baseConfig() {
         SparkFlexConfig config = new SparkFlexConfig();
 
         config
@@ -184,7 +200,7 @@ public class SK26HayLauncher extends SubsystemBase {
             .uvwAverageDepth(2);
 
         return config;
-    }
+    }*/
 
     @Override
     public void periodic() {

@@ -58,7 +58,7 @@ public class SKIntake extends SubsystemBase {
 
     public SKIntake() {
 
-        rollerConfig.inverted(false);
+        rollerConfig.inverted(true);
         rollerConfig.idleMode(IdleMode.kCoast); // let the roller spin down instead of jerking pieces
         rollerConfig.smartCurrentLimit(kIntakeRollerCurrentLimit);
 

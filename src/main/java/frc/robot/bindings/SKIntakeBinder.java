@@ -3,13 +3,16 @@ package frc.robot.bindings;
 import java.util.Optional;
 
 import frc.lib.bindings.CommandBinder;
+import frc.robot.commands.IntakeCommands.DeployIntakeCommand;
 import frc.robot.commands.IntakeCommands.IntakeButtonCommand;
 import frc.robot.commands.IntakeCommands.StowIntakeCommand;
 import frc.robot.subsystems.Intake.SKIntake;
 
+import static frc.robot.Ports.OperatorPorts.kAbutton;
 import static frc.robot.Ports.OperatorPorts.kLBbutton;
 import static frc.robot.Ports.OperatorPorts.kLTrigger;
 import static frc.robot.Ports.OperatorPorts.kXbutton;
+import static frc.robot.Ports.OperatorPorts.kYbutton;
 
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
@@ -19,6 +22,8 @@ public class SKIntakeBinder implements CommandBinder {
     Trigger runIntake;
     Trigger stowIntake;
     Trigger ejectIntake;
+    Trigger deployIntake;
+    Trigger runRollers;
 
     public SKIntakeBinder(Optional<SKIntake> m_intakeContainer) {
         this.m_intakeContainer = m_intakeContainer;
@@ -26,6 +31,8 @@ public class SKIntakeBinder implements CommandBinder {
         this.runIntake = kLTrigger.button;
         this.stowIntake = kLBbutton.button;
         this.ejectIntake = kXbutton.button;
+        this.deployIntake = kYbutton.button;
+        this.runRollers = kAbutton.button;
     }
 
     public void bindButtons() {
@@ -40,6 +47,12 @@ public class SKIntakeBinder implements CommandBinder {
 
             // Hold to spit a jammed ball back out (pivot stays wherever it is)
             ejectIntake.whileTrue(m_intake.runRollersEjectCommand());
+
+            // Press to move the pivot out to deployed (rollers stay off)
+            deployIntake.onTrue(new DeployIntakeCommand(m_intake).withName("DeployIntake"));
+
+            // Hold to run the rollers in (pivot stays wherever it is)
+            runRollers.whileTrue(m_intake.runRollersIntakeCommand());
         }
     }
 }
